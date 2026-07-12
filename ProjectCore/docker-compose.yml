@@ -1,0 +1,162 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ProjectCore — Full Observability Stack
+#
+#  Services:
+#    api         → ASP.NET Core 9 API   :5036
+#    sqlserver   → SQL Server 2022      :1433
+#    loki        → Log storage          :3100
+#    tempo       → Trace storage        :3200 (UI), :4317 (OTLP gRPC)
+#    prometheus  → Metrics storage      :9090
+#    grafana     → Dashboards           :3001   ← not 3000 (NextJS)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── API ─────────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: projectcore-api
+    ports:
+      - "5036:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # Database
+      ConnectionStrings__DefaultConnection: >-
+        Server=sqlserver,1433;Database=office_games;
+        User Id=sa;Password=YourStrong@Passw0rd;
+        TrustServerCertificate=True;MultipleActiveResultSets=True
+      # JWT
+      JwtSettings__SecretKey: "YourSuperSecretKeyThatIsAtLeast32CharactersLong!@#$2026"
+      JwtSettings__Issuer: "ProjectCore.API"
+      JwtSettings__Audience: "ProjectCore.Client"
+      JwtSettings__AccessTokenExpirationMinutes: "15"
+      # Admin seed
+      AdminSeed__UserName: "admin"
+      AdminSeed__Email: "admin@projectcore.local"
+      AdminSeed__Password: "Admin@2026"
+      AdminSeed__FullName: "System Administrator"
+      AdminRole__Name: "ADMIN"
+      AdminRole__Description: "System administrator role"
+      # Observability
+      Loki__Uri: "http://loki:3100"
+      Otel__Endpoint: "http://tempo:4317"
+      # CORS
+      Cors__AllowedOrigins__0: "http://localhost:3000"
+      Cors__AllowedOrigins__1: "https://localhost:3000"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      loki:
+        condition: service_started
+      tempo:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # ── SQL Server ───────────────────────────────────────────────────────────────
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: projectcore-sqlserver
+    ports:
+      - "1433:1433"
+    environment:
+      SA_PASSWORD: "YourStrong@Passw0rd"
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Express"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong@Passw0rd" -Q "SELECT 1" -No
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # ── Grafana Loki (log storage) ───────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: projectcore-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # ── Grafana Tempo (trace storage) ────────────────────────────────────────────
+  tempo:
+    image: grafana/tempo:latest
+    container_name: projectcore-tempo
+    ports:
+      - "3200:3200"   # Tempo UI / HTTP API
+      - "4317:4317"   # OTLP gRPC (from API)
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./docker/tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    command: -config.file=/etc/tempo.yaml
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # ── Prometheus (metrics storage) ─────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: projectcore-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # ── Grafana (dashboards) ─────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: projectcore-grafana
+    ports:
+      - "3001:3000"   # 3001 host — avoids conflict with NextJS on 3000
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor"
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - loki
+      - tempo
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - observability
+
+# ── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  sqlserver_data:
+  loki_data:
+  tempo_data:
+  prometheus_data:
+  grafana_data:
+
+# ── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  observability:
+    driver: bridge

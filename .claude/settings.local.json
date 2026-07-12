@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet add:*)",
+      "Bash(cd:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(xargs -I {} basename {})",
+      "Bash(npx tsc:*)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}
