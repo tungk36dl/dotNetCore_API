@@ -41,6 +41,8 @@ project.fragment.lock.json
 artifacts/
 
 # ASP.NET Core
+appsettings.json
+appsettings.Development.json
 appsettings.Production.json
 appsettings.Staging.json
 ScaffoldingReadMe.txt

@@ -52,6 +52,7 @@ packages/
 *.nuget.targets
 
 # ASP.NET / publish output
+appsettings.json
 appsettings.Production.json
 appsettings.Staging.json
 ScaffoldingReadMe.txt
@@ -117,6 +118,8 @@ next-env.d.ts
 !.env.example
 !.env.sample
 !.env.local.example
+!appsettings.example.json
+!appsettings.*.example.json
 
 # =============================================
 # OS-specific

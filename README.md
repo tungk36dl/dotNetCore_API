@@ -146,7 +146,16 @@ Mở http://localhost:3000 — `NEXT_PUBLIC_API_URL` phải trỏ tới `http://
 
 ### 1. Database
 
-Tạo database (ví dụ `office_games`) trên SQL Server. Cập nhật connection string trong `ProjectCore/ProjectCore.Presentation.API/appsettings.json` **hoặc** biến môi trường `ConnectionStrings__DefaultConnection`.
+Tạo database (ví dụ `office_games`) trên SQL Server. Cập nhật connection string trong `appsettings.Development.json` **hoặc** biến môi trường `ConnectionStrings__DefaultConnection`.
+
+Lần đầu clone, tạo file cấu hình local từ template:
+
+```bash
+cd ProjectCore/ProjectCore.Presentation.API
+cp appsettings.example.json appsettings.json
+cp appsettings.Development.example.json appsettings.Development.json
+# Production (Docker / deploy): cp appsettings.Production.example.json appsettings.Production.json
+```
 
 EF Core sẽ migrate / seed khi API khởi động (xem `Program.cs`).
 
@@ -177,7 +186,17 @@ CORS mặc định cho phép `http://localhost:3000` và `https://localhost:3000
 
 ## Cấu hình môi trường
 
-**Không commit secret.** `appsettings.json` trên máy local có thể chứa connection string thật — dùng User Secrets hoặc biến môi trường khi chia sẻ repo.
+**Không commit secret.** Các file sau **không** được đẩy lên Git (xem `.gitignore`):
+
+| File | Môi trường | Nội dung |
+|------|------------|----------|
+| `appsettings.json` | Chung | Serilog, CORS, JWT issuer/audience (không secret) |
+| `appsettings.Development.json` | Development | Connection string, JWT secret, admin seed |
+| `appsettings.Production.json` | Production | DB Docker, Loki/Tempo, secret production |
+
+Template an toàn (có trên repo): `appsettings.example.json`, `appsettings.Development.example.json`, `appsettings.Production.example.json`.
+
+ASP.NET Core merge theo thứ tự: `appsettings.json` → `appsettings.{Environment}.json` → biến môi trường.
 
 ### Backend (appsettings / env)
 
